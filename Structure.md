@@ -1,5 +1,10 @@
 # Project Structure
 
+- [Used Libraries](#used-libraries)
+- [Client](#client)
+- [Server](#server)
+- [Messages](#messages)
+
 ## Used Libraries
 
 * Akka - Enables concurrency and message sending using the actor model
