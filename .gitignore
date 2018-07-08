@@ -1,0 +1,9 @@
+.idea/
+.vscode/
+*.7z
+*.dmg
+*.gz
+*.iso
+*.rar
+*.tar
+*.zip

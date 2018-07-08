@@ -1,6 +1,13 @@
 # End to end encrypted chat
 An encrypted chat created for a mini project course in Computer Security
 
+- [Pre-requisites](#pre-requisites)
+- [Building the project](#building-the-project)
+- [Running the project](#running-the-project)
+- [Using the program](#using-the-program)
+
+
+
 ##  Pre-requisites
 If you only need to run you need to first install java by using the command:
 
