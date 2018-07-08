@@ -1,2 +1,0 @@
-#! /bin/bash
-java -jar ./jars/createCerti.jar $1 

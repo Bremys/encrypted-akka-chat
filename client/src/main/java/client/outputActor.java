@@ -13,6 +13,8 @@ public class outputActor extends AbstractActor {
         this.terminal = terminal;
     }
 
+
+    // Printing without interrupting input line, taken from github
     @Override
     public Receive createReceive() {
         return receiveBuilder()

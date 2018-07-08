@@ -45,6 +45,8 @@ public class Client extends AbstractActor {
     private SessionState session;
     private MyCertificate sessionCerti;
 
+
+    //Runs on start up of actor, creates the output and input actors.
     @Override
     public void preStart() throws Exception {
         server = getContext().actorSelection("akka.tcp://ChatSystem@127.0.0.1:3553/user/Server");
@@ -55,49 +57,86 @@ public class Client extends AbstractActor {
         outActor.tell("You need to start with /load <RSA key pair path>\n", self());
 
     }
+    
+    /*
+    Our main function, it is built in a match case
+    in the following format:
 
+        .match(MessageClass.class, a function that receives a message m of class MessageClass)
+
+    In which the function is run in case a message of that type is received.
+    A similar function appears in the server.
+    */
     @Override
     public Receive createReceive() {
         return receiveBuilder()
-                .match(String.class, m -> {
-                    server.tell(parseInput(m), self());
-                })
-                .match(ChatMsg.class, m-> {
-                    String toPrint;
-                    if(verify(m.getChatString(), m.getSignedString(), sessionCerti.getPubKey())){
-                        toPrint = getTimeString() + m.getEmail() + ": "
-                                + decrypt(m.getChatString(), keyPair.getPrivate()) + "\n";
-                    }
-                    else {
-                        toPrint = "Can't verify!\n";
-                    }
-                    self().tell(new SimpleMsg(toPrint), self());
-                })
-                .match(SimpleMsg.class, m -> {
-                    outActor.tell(m.getMsg(), self());
-                })
-                .match(PuzzleMsg.class, m -> {
-                    sender().tell(new PuzzleAnswerMsg(this.currEmail, signString(m.getChallenge())), self());
-                })
-                .match(SessionCertificate.class, m-> {
-                    this.session = Embryo;
-                    this.sessionCerti = m.getCertificate();
-                    sender().tell(new SessionCertificateAck(this.currEmail, m.getCertiEmail(), m.getCertificate().verify()), self());
-                })
-                .match(SessionFail.class, m-> {
-                    this.session = Dead;
-                    this.sessionCerti = null;
-                })
-                .match(SessionSuccsses.class, m-> {
-                    session = Running;
-                })
-                .matchAny(m -> {
-                    outActor.tell("DEBUGGING: " + m.toString() + "\n", self());
-                })
-                .build();
+        /*
+        Receiveing input strings from an input Actor 
+        (can be viewed essentialy as a different thread)
+        parses them, and sends the correct message to the server
+        */
+        .match(String.class, m -> { 
+            server.tell(parseInput(m), self());
+        })
+        /**
+         * A simple chat message sent between two users which is verified, 
+         * decrypted and printed
+         */
+        .match(ChatMsg.class, m-> {
+            String toPrint;
+            if(verify(m.getChatString(), m.getSignedString(), sessionCerti.getPubKey())){
+                toPrint = getTimeString() + m.getEmail() + ": "
+                        + decrypt(m.getChatString(), keyPair.getPrivate()) + "\n";
+            }
+            else {
+                toPrint = "Can't verify!\n";
+            }
+            self().tell(new SimpleMsg(toPrint), self());
+        })
+        /**
+         * A simple msg is a request to print a string, the string itself
+         * is sent to an output actor
+         */
+        .match(SimpleMsg.class, m -> {
+            outActor.tell(m.getMsg(), self());
+        })
+        /**
+         * In use in a login in order to verify that the email
+         * requesting login indeed has access to his private key
+         */
+        .match(PuzzleMsg.class, m -> {
+            sender().tell(new PuzzleAnswerMsg(this.currEmail, signString(m.getChallenge())), self());
+        })
+        /**
+         * Receiving a certificate of the other user we are requesting a session
+         * with.
+         */
+        .match(SessionCertificate.class, m-> {
+            this.session = Embryo;
+            this.sessionCerti = m.getCertificate();
+            sender().tell(new SessionCertificateAck(this.currEmail, m.getCertiEmail(), m.getCertificate().verify()), self());
+        })
+        /**
+         * Cancellation of session in case the certificate verification
+         * failed.
+         */
+        .match(SessionFail.class, m-> {
+            this.session = Dead;
+            this.sessionCerti = null;
+        })
+        /**
+         * Notifying of a sucessful session
+         */
+        .match(SessionSuccsses.class, m-> {
+            session = Running;
+        })
+        .matchAny(m -> {
+            outActor.tell("DEBUGGING: " + m.toString() + "\n", self());
+        })
+        .build();
     }
 
-
+    //Runs on every input string and returns a message to send to the server
     private Message parseInput(String fullMsg) {
         Message msg = null;
         String [] userInput = fullMsg.split("\\s+");
@@ -115,9 +154,6 @@ public class Client extends AbstractActor {
         else if (userInput[0].equals("/disc")){
             msg = new LogoutMsg(this.currEmail);
         }
-        // else if (userInput[0].equals("/loggedlist")){
-        //     msg = new UserListMsg();
-        // }
         else if (userInput[0].equals("/chat")){
             msg = new StartSessionMsg (userInput[1], this.currEmail);
         }
@@ -143,6 +179,7 @@ public class Client extends AbstractActor {
         }
         else {
             self().tell(new SimpleMsg(getTimeString() + this.currEmail + ": " + fullMsg + "\n"), self());
+            //Encryption of the message 
             try {
                 Cipher encryptCipher = Cipher.getInstance("RSA");
                 encryptCipher.init(Cipher.ENCRYPT_MODE, sessionCerti.getPubKey());
@@ -164,6 +201,10 @@ public class Client extends AbstractActor {
         return msg;
     }
 
+
+    /**
+     * The terminal interface used in the project
+     */
     private void createReaderTerminal () {
         TerminalBuilder builder = TerminalBuilder.builder();
         Completer completer = new ArgumentCompleter(new StringsCompleter(
@@ -172,7 +213,6 @@ public class Client extends AbstractActor {
             "/register",
             "/disc",
             "/validate",
-            "/loggedlist",
             "/chat",
             "/endchat"
     ),
@@ -190,6 +230,7 @@ public class Client extends AbstractActor {
                 .build();
     }
 
+    //Sign using the public key loaded earlier
     private String signString(String plaintext) {
         try {
             Signature sign = Signature.getInstance("SHA256withRSA");
@@ -206,6 +247,8 @@ public class Client extends AbstractActor {
         return "";
     }
 
+
+    // Verification function
     public boolean verify(String plaintext, String signed, PublicKey pubKey) {
 
         Signature publicSignature = null;
@@ -226,6 +269,8 @@ public class Client extends AbstractActor {
         return false;
     }
 
+
+    // Decryption function
     private String decrypt (String cipherText, PrivateKey privateKey) {
         byte[] bytes = Base64.getDecoder().decode(cipherText);
 

@@ -5,7 +5,7 @@ import messages.MyCertificate;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-
+//All the information needed to maintain a single
 public class User {
     private ActorRef userActor;
     private User sessionUser;

@@ -23,6 +23,7 @@ public class inputActor extends AbstractActor {
     }
 
 
+    // Getting input, got from github.
     @Override
     public void preStart() {
         reader.setOpt(LineReader.Option.ERASE_LINE_ON_FINISH);

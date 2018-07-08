@@ -11,6 +11,7 @@ public class EmailActor extends AbstractActor {
     @Override
     public Receive createReceive() {
         return receiveBuilder()
+                //Sending the email for verification
                 .match(EmailRequest.class, m -> {
                     Email email = EmailBuilder.startingBlank()
                             .from("MiniProject Chat", "miniprojecttcs@gmail.com")

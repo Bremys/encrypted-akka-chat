@@ -22,9 +22,25 @@ public class Server extends AbstractActor {
     private ActorRef mailer;
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
+
+    /*
+    Our main function, it is built in a match case
+    in the following format:
+
+        .match(MessageClass.class, a function that receives a message m of class MessageClass)
+
+    In which the function is run in case a message of that type is received.
+    A similar function appears in the client.
+    */
     @Override
     public Receive createReceive() {
         return receiveBuilder()
+                /**
+                 * A register message, adding a requesting user while not fully
+                 * validating him. Sending a request to another actor whose purpoes is 
+                 * to send an email and if the requesting user doesn't verify within 3 
+                 * minutes, he is removed.
+                 */
                 .match(RegMsg.class, m -> {
                     if (m.getCerti().verify()){
                         String toVal = getRandomString();
@@ -42,6 +58,12 @@ public class Server extends AbstractActor {
                     }
 
                 })
+
+                /**
+                 * A validation message, finallizing the addition of a registered
+                 * user given that he has registered with an email he owns and
+                 * entered the correct validation string which was sent to him.
+                 */
                 .match(ValMsg.class, m -> {
                     Message toSend = null;
                     if (regUsers.containsKey(m.getEmail())) {
@@ -60,6 +82,13 @@ public class Server extends AbstractActor {
                     }
                     sender().tell(toSend, self());
                 })
+                /**
+                 * A logging request by a user.
+                 * We get the user's public key and send a puzzle which is a
+                 * random string encrypted. Given the user has a matching private key
+                 * he can decrypt it and send the result which we will compare with
+                 * the random string.
+                 */
                 .match(LoginMsg.class, m -> {
                     Message toSend = null;
                     if (regUsers.containsKey(m.getEmailToLog()) && !loggedUsers.containsKey(m.getEmailToLog())) {
@@ -72,6 +101,10 @@ public class Server extends AbstractActor {
                     }
                     sender().tell(toSend, self());
                 })
+                /**
+                 * A puzzle response from the user.
+                 * We verify its correctness and finallize the addition.
+                 */
                 .match(PuzzleAnswerMsg.class, m -> {
                     Message toSend = null;
                     if (regUsers.containsKey(m.getEmail())) {
@@ -90,6 +123,9 @@ public class Server extends AbstractActor {
                     }
                     sender().tell(toSend, self());
                 })
+                /**
+                 * Removing a logged in user
+                 */
                 .match(LogoutMsg.class, m -> {
                     Message toSend = null;
                     if (loggedUsers.containsKey(m.getEmailToDisc())) {
@@ -103,6 +139,7 @@ public class Server extends AbstractActor {
                     }
                     sender().tell(toSend, self());
                 })
+                //For debugging purposes, not relevant
                 .match(UserListMsg.class, m -> {
                     String usersPrint = "Currently logged in users are:\n";
                     for (String email : loggedUsers.keySet()) {
@@ -110,6 +147,9 @@ public class Server extends AbstractActor {
                     }
                     sender().tell(new SimpleMsg(usersPrint), self());
                 })
+                /**
+                 * Request a session between two users and exchange public certificates
+                 */
                 .match(StartSessionMsg.class, m -> {
                     if (loggedUsers.containsKey(m.getRequestEmail())) {
                         User requestedUser = loggedUsers.get(m.getRequestEmail());
@@ -124,6 +164,9 @@ public class Server extends AbstractActor {
                         sender().tell(new SimpleMsg("Email not found, session failed.\n"), self());
                     }
                 })
+                /**
+                 * The users confirm that the certificate is verified
+                 */
                 .match(SessionCertificateAck.class, m -> {
                     User requestedUser = loggedUsers.get(m.getRequestedEmail());
                     User askingUser = loggedUsers.get(m.getAskerEmail());
@@ -142,6 +185,9 @@ public class Server extends AbstractActor {
 
                     }
                 })
+                /**
+                 * A request to end a session
+                 */
                 .match(EndSessionMsg.class, m -> {
                     User requestingUser = loggedUsers.get(m.getEmail());
                     if(requestingUser.getSessionUser() != null) {
@@ -155,6 +201,10 @@ public class Server extends AbstractActor {
                         sender().tell(new SimpleMsg("Not currently in session.\n"), self());
                     }
                 })
+                /**
+                 * Simple text message to be passed, sent by a user to
+                 * its current user in session with him
+                 */
                 .match(ChatMsg.class, m -> {
                     User sendingUser = loggedUsers.get(m.getEmail());
                     if (sendingUser.getSessionUser() != null) {
@@ -166,6 +216,7 @@ public class Server extends AbstractActor {
                         sender().tell(new SimpleMsg("Currently not in session!\n"), self());
                     }
                 })
+                //A technical get-around for a message that does nothing
                 .match(IgnMsg.class, m -> {})
                 .matchAny(m -> {
                     System.out.println("Do I get here");
@@ -175,6 +226,7 @@ public class Server extends AbstractActor {
 
 
 
+    //Runs on start up of actor, creates another actor for sending emails
     @Override
     public void preStart() throws Exception {
         mailer= getContext().actorOf(Props.create(EmailActor.class), "Mailer");

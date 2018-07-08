@@ -1,3 +1,0 @@
-#! /bin/bash
-java -jar ./jars/client.jar
-
